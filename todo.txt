@@ -1,0 +1,12 @@
+- Add padding to beginning AND end 5 long by 5 long:
+[X____]
+[_X___]
+[__X__]
+[___X_]
+[____X]
+
+-----------------------------
+
+0 prediction  -> 20-30FPS
+1 prediction  -> 5FPS
+2 predictions -> 3FPS

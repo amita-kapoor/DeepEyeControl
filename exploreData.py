@@ -1,67 +1,40 @@
-import os
-import cv2
-import cv2
-from config import rawPath, processedPath, screenSize, datasetPath, datasetImageSize
-import matplotlib.pyplot as plt
 import pickle
+from config import modelsPath, datasetPath, datasetImageSize
+from datasetTools import padLSTM
+import numpy as np
+import random
+import matplotlib.mlab as mlab
+import matplotlib.pyplot as plt
 
-def showRawDatasetDistribution():
-	files = os.listdir(rawPath)
-	files = [file for file in files if file.endswith(".png")]
+def explore():
+	#Load dataset
+	X0 = pickle.load(open(datasetPath+"X0_hd.p", "rb" ))
+	X1 = pickle.load(open(datasetPath+"X1_hd.p", "rb" ))
+	y = pickle.load(open(datasetPath+"y_hd.p", "rb" ))
 
-	fig, ax = plt.subplots()
-	ax.grid(False)
+	lengths = [serie.shape[0] for serie in X0]
+	maxlength = max(lengths)
+	minLength = min(lengths)
 
-	print len(files), "files in raw dataset."
-	for filename in files:
-		x, y = map(int,filename[:-4].split('_')[-2:])
-		#Y is towards bottom
-		y = screenSize[1] - y
-		ax.scatter(x, y, color='r', alpha=0.3)
+	#print lengths
+	print len([_ for _ in lengths if _ > 100]), "over 100"
 
+	print "Lengths range: {} to {}".format(minLength,maxlength)
+
+	print len(X0), "series of shape", X0[0].shape
+
+	X0 = padLSTM(X0, maxlen=maxlength, value=0.)
+	X1 = padLSTM(X1, maxlen=maxlength, value=0.)
+
+	print len(X0), "padded series of shape", X0[0].shape
+
+	# the histogram of the data
+	n, bins, patches = plt.hist(lengths, 100, facecolor='blue', alpha=0.75)
 	plt.show()
 
-def showClassDistribution():
-	y = pickle.load(open(datasetPath+"yo_4_2_{}.p".format(datasetImageSize), "rb" ))
-	counter = {0:0,1:0,2:0,3:0,4:0}
-	for sample in y:
-		sampleClass = max(enumerate(sample), key=lambda x:x[1])[0]
-		counter[sampleClass] = counter[sampleClass] + 1
-	print counter
 
-def showMeanImage(): 
-	files = os.listdir(processedPath)
-	files = [file for file in files if file.endswith(".png")]
-
-	meanImg = None
-	nbFiles = len(files)
-	ratio = 1./(nbFiles*255)
-
-	for filename in files:
-		img = cv2.imread(processedPath+filename,0)
-		if meanImg == None:
-			meanImg = img*ratio
-		else:
-			meanImg = cv2.add(meanImg,img*ratio)
-
-	cv2.imshow("mean",meanImg)
-	cv2.waitKey(0)
-	cv2.destroyAllWindows()
-
-#showRawDatasetDistribution()
-showClassDistribution()
-
-
-
-
-
-
-
-
-
-
-
-
+if __name__ == "__main__":
+	explore()
 
 
 
