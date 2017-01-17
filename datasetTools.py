@@ -1,133 +1,286 @@
 import os
 import cv2
 import random
+from random import randrange
 import string
 import math
 from random import shuffle
 import numpy as np
 import pickle
-from config import rawPath, datasetPath, screenSize, datasetImageSize, processedPath, gridSize
+from config import rawPath, datasetPath, datasetImageSize, processedPath, datasetMaxSerieLength
+import os.path
+import shutil
+import sys
+
+#Padding for LSTM
+def padLSTM(sequences, maxlen=None, dtype='int32', padding='post', truncating='post', value=0.):
+	lengths = [len(s) for s in sequences]
+
+	nb_samples = len(sequences)
+	if maxlen is None:
+		maxlen = np.max(lengths)
+
+	#x = (np.ones((nb_samples, maxlen)) * value).astype(dtype)
+	x = (np.ones((nb_samples, maxlen, datasetImageSize, datasetImageSize, 1)) * value).astype(dtype)
+
+	for idx, s in enumerate(sequences):
+		if len(s) == 0:
+			continue  # empty list was found
+		if truncating == 'pre':
+			trunc = s[-maxlen:]
+		elif truncating == 'post':
+			trunc = s[:maxlen]
+		else:
+			raise ValueError("Truncating type '%s' not understood" % padding)
+
+		if padding == 'post':
+			x[idx, :len(trunc)] = trunc
+		elif padding == 'pre':
+			x[idx, -len(trunc):] = trunc
+		else:
+			raise ValueError("Padding type '%s' not understood" % padding)
+	return x
 
 #All processing on the image
 def process(eye):
-	eye =  cv2.resize(eye,(datasetImageSize, datasetImageSize), interpolation = cv2.INTER_CUBIC)
-	eye = normalize(eye)
+	eye = cv2.resize(eye,(datasetImageSize, datasetImageSize), interpolation = cv2.INTER_CUBIC)
+	eye = cv2.equalizeHist(eye)
 	return eye
 
-#Corrects lightning
-def normalize(eye):
-	hist,bins = np.histogram(eye.flatten(),256,[0,256])
-	cdf = hist.cumsum()
-	cdf_normalized = cdf * hist.max()/ cdf.max()
-	cdf_m = np.ma.masked_equal(cdf,0)
-	cdf_m = (cdf_m - cdf_m.min())*255/(cdf_m.max()-cdf_m.min())
-	cdf = np.ma.filled(cdf_m,0).astype('uint8')
-	eye = cdf[eye]
-	return eye
-
-#Flip
-def flip(eye, x ,y):
-	flippedEyes = []
-	flippedEyes.append((eye,x,y))
-	flippedEyes.append((cv2.flip(eye,1),screenSize[0] - x,y))
-	return flippedEyes
-
-#Rotate image and zoop
-def rotate(eye, x, y):
-	(h, w) = eye.shape[:2]
-	center = (w / 2, h / 2)
-	rotated = []
-	for angle,zoom in [(-5,1.1),(5,1.1)]:
-		# rotate the image by 180 degrees
-		M = cv2.getRotationMatrix2D(center, angle, zoom)
-		rotatedEye = cv2.warpAffine(eye, M, (w, h))
-		rotated.append((rotatedEye,x,y))
-	return rotated
-
-#Flip, rotate, etc.
-def augment(eye,x,y):
-	augmentedEyes = []
-	
-	#Original
-	flippedEyes = flip(eye,x,y)
-
-	#TODO ROTATION USEFUL ?
-	#Rotate
-	for flippedEye, flippedX, flippedY in flippedEyes:
-		for rotatedEye, rotatedX, rotatedY in rotate(flippedEye,flippedX,flippedY):
-			augmentedEyes.append((rotatedEye, rotatedX, rotatedY))
-	return augmentedEyes
+def getDifferenceFrame(t1, t0):
+	diff = t1.astype(float) - t0.astype(float)
+	return diff
 
 #Writes image at desired path
-def save(eye,x,y,destinationPath):
-	randomHash = ''.join(random.choice(string.ascii_lowercase) for _ in range(5))
-	name = "{}_{}_{}.png".format(x,y,randomHash)
+def save(eye,step,eyeNb,motion,destinationPath):
+	name = "{}_{}_{}.png".format(motion,eyeNb,step)
 	cv2.imwrite(destinationPath+name,eye)
 
 ####### GENERATE PROCESSED & AUGMENTED DATASET FROM RAW #######
 
 #Reads from RAW and writes to PROCESSED
 def generateProcessedImages():
-	files = os.listdir(rawPath)
-	files = [file for file in files if file.endswith(".png")]
-	print len(files), "files found."
+	print "Generating processed images..."
 
-	for filename in files:
-		eye = cv2.imread(rawPath+filename,0)
-		eyeX, eyeY = map(int,filename[:-4].split("_")[-2:])
+	folders = os.listdir(rawPath)
+	folders = [folder for folder in folders if os.path.isdir(rawPath+folder)]
 
-		processedEye = process(eye)
-		augmentedEyes = augment(processedEye,eyeX,eyeY)
-		for augmentedEye, x, y in augmentedEyes:
-			save(augmentedEye, x, y, processedPath)
+	for index,folder in enumerate(folders):
+		try:
+			os.mkdir(processedPath+folder)
+		except:
+			pass
+
+		folderNb = folder.split('_')[-1]
+		
+		print "Processing folder {}/{}...".format(index+1,len(folders))
+		if index+1 < len(folders): sys.stdout.write("\033[F")
+
+		#Copy skips file
+		skipPath = rawPath+folder+'/a_skips.txt'
+		newSkipPath = processedPath+folder+'/a_skips.txt'
+		shutil.copy(skipPath,newSkipPath)
+
+		files = os.listdir(rawPath+folder)
+		files = [file for file in files if file.endswith(".png")]
+
+		for filename in files:
+			motionName, eyeNb, step = filename[:-4].split('_')
+			
+			#Open and process image
+			eye = cv2.imread(rawPath+folder+"/"+filename,0)
+			processedEye = process(eye)
+			savePath = processedPath+"{}_{}/".format(motionName,folderNb)
+			
+			#Write processed image on disk
+			save(processedEye,step,eyeNb,motionName,savePath)
 
 ####### GENERATE (X,y) DATASET #########
 
-#Grid index from top left to bottom right
-def getIndex(gridWidth,gridHeight,imgx,imgy):
-	xgrid = math.floor(float(imgx)/(float(screenSize[0])/gridWidth))
-	ygrid = math.floor(float(imgy)/(float(screenSize[1])/gridHeight))
-	index = gridWidth*ygrid + xgrid
-	return index
+def getTimeWarpedDataset(X0,X1,y):
+
+	newX0, newX1, newY = [], [], []
+
+	#Foreach sample in the dataset
+	for i in range(len(y)):
+		label = y[i]
+		#Grab copie of series
+		X0serie = list(X0[i])
+		X1serie = list(X1[i])
+
+		#Keep initial samples
+		newX0.append(np.array(X0serie))
+		newX1.append(np.array(X1serie))
+		newY.append(label)
+
+		if 25 <= len(X0serie) <= 49:
+			#Slowdown x0.5
+			X0serie = [x for pair in zip(X0serie,X0serie) for x in pair]
+			X1serie = [x for pair in zip(X1serie,X1serie) for x in pair]
+			#Add to dataset
+			newX0.append(np.array(X0serie))
+			newX1.append(np.array(X1serie))
+			newY.append(label)
+
+		elif 74 <= len(X0serie) <= 100:
+			#Speedup x2
+			X0serie = [X0serie[speedIndex] for speedIndex in range(len(X0serie)) if speedIndex%2 == 0]
+			X1serie = [X1serie[speedIndex] for speedIndex in range(len(X1serie)) if speedIndex%2 == 0]
+			#Add to dataset
+			newX0.append(np.array(X0serie))
+			newX1.append(np.array(X1serie))
+			newY.append(label)
+
+	return newX0, newX1, newY
+
+def getPaddedDataset(X0,X1,y,paddedExamples=2):
+	#TODO add slight noise ?
+	blankFrame = np.zeros((datasetImageSize,datasetImageSize)).astype(float)
+	blankFrame = np.reshape(blankFrame,[datasetImageSize,datasetImageSize,1])
+	
+	#We don't keep old samples
+	newX0, newX1, newY = [], [], []
+
+	#Foreach sample in the dataset
+	for i in range(len(y)):
+		label = y[i]
+
+		#Add N padded examples
+		for _ in range(paddedExamples):
+			#Grab copie of series
+			X0serie = list(X0[i])
+			X1serie = list(X1[i])
+
+			#Add blank frames until reaching padded length
+			while len(X0serie) < datasetMaxSerieLength:
+				randomIndex = randrange(0,len(X0serie))
+				X0serie.insert(randomIndex,blankFrame)
+				X1serie.insert(randomIndex,blankFrame)
+
+			#Add to final dataset
+			newX0.append(np.array(X0serie))
+			newX1.append(np.array(X1serie))
+			newY.append(label)
+
+	return newX0, newX1, newY
 
 #Creates pickle dataset (X,y)
-def generateDataset(gridWidth,gridHeight): 
-	files = os.listdir(processedPath)
-	files = [file for file in files if file.endswith(".png")]
+def generateDataset(motions, randomPadding=False, cropLength=False, speedUp=False): 
+	print "Generating dataset..."
 
-	shuffle(files)
+	X0, X1, y = [], [], []
 
-	print len(files), "files found."
+	#List processed folders
+	folders = os.listdir(processedPath)
+	folders = [folder for folder in folders if os.path.isdir(processedPath+folder)]
 
-	X, y = [], []
-	for filename in files:
-		img = cv2.imread(processedPath+filename,0)		
-		imgx,imgy = map(int,filename[:-4].split("_")[:-1])
+	for index, folder in enumerate(folders):
 
-		index = getIndex(gridWidth,gridHeight,imgx,imgy)
-	
-		conv = {0.:0,3.:1,4.:2,7.:3}
+		#Extract ordered stop points
+		with open(processedPath+folder+"/a_skips.txt") as f:
+			lines = [line.strip() for line in f.readlines()]
+			stopPoints = [int(line.split('_')[-1]) for line in lines]
+			seen = set()
+			seen_add = seen.add
+			stopPoints = [x for x in stopPoints if not (x in seen or seen_add(x)) and x != 0]
 
-		if index in conv:
-			newIndex = conv[index]
-		else:
-			newIndex = 4
+		print "Extracting data for folder {}/{}...".format(index+1,len(folders))
+		if index+1 < len(folders): sys.stdout.write("\033[F")
 
-		if newIndex < 4:
-			#Add to dataset
-			X.append(np.array(img.reshape([datasetImageSize,datasetImageSize,1])))
+		motionName, folderNb = folder.split('_')
+		label = [1. if motionName == motion else 0. for motion in motions]
+		
+		files = os.listdir(processedPath+folder)
+		files = [file for file in files if file.endswith(".png")]
 
-			#One hot
-			label = [1. if i == newIndex else 0. for i in range(4)]
-			y.append(np.array(label))
+		maxStep = max([int(filename[:-4].split('_')[-1]) for filename in files])
 
-	pickle.dump(X, open(datasetPath+"X4_{}_{}_{}.p".format(gridWidth,gridHeight,datasetImageSize), "wb" ))
-	pickle.dump(y, open(datasetPath+"y4_{}_{}_{}.p".format(gridWidth,gridHeight,datasetImageSize), "wb" ))
+		X0serie, X1serie = [], []
 
+		for step in range(maxStep+1):
+			eye0Path = processedPath+folder+"/{}_{}_{}.png".format(motionName,0,step)
+			eye1Path = processedPath+folder+"/{}_{}_{}.png".format(motionName,1,step)
 
-#generateDataset(*gridSize)
-#generateProcessedImages()
+			#Add first eye image
+			eye0Img = cv2.imread(eye0Path,0).astype(float)
+			eye0Data = np.reshape(eye0Img,[datasetImageSize,datasetImageSize,1])
+			X0serie.append(eye0Data)
 
+			#Add second eye image
+			eye1Img = cv2.imread(eye1Path,0).astype(float)
+			eye1Data = np.reshape(eye1Img,[datasetImageSize,datasetImageSize,1])
+			X1serie.append(eye1Data)
+
+		#Compute frame difference instead of frames
+		X0serieDiff = []
+		X1serieDiff = []
+
+		#Compute diff
+		for step in range(1,len(X0serie)):
+			#Avoid shifts of bounding box
+			if step not in stopPoints:
+				eye0_t0 = X0serie[step-1]
+				eye0_t1 = X0serie[step]
+				diff0 = getDifferenceFrame(eye0_t1, eye0_t0);
+				X0serieDiff.append(diff0)
+
+				eye1_t0 = X1serie[step-1]
+				eye1_t1 = X1serie[step]
+				diff1 = getDifferenceFrame(eye1_t1, eye1_t0);
+				X1serieDiff.append(diff1)
+
+				#Pretty display -- no computation here --
+				# from videoTools import showDifference
+				# current = np.hstack((eye0_t1.astype(np.uint8),eye1_t1.astype(np.uint8)))
+				# last = np.hstack((eye0_t0.astype(np.uint8),eye1_t0.astype(np.uint8)))
+				# showDifference(current,last)
+				# cv2.waitKey(0)
+
+		#Add to dataset
+		X0.append(np.array(X0serieDiff))
+		X1.append(np.array(X1serieDiff))
+		y.append(label)
+
+	#Now we have loaded all images diffs into X0, X1
+
+	#Manual time warping
+	print len(X0), "examples of shape", X0[0].shape
+	print "Time warping dataset..."
+	#X0, X1, y = getTimeWarpedDataset(X0, X1, y)
+	print "Generated dataset of size {} x {}".format(len(X0),X0[0].shape)
+
+	#Now we have loaded all images diffs into X0, X1
+	print len(X0), "examples of shape", X0[0].shape
+	print "Padding dataset..."
+	#X0, X1, y = getPaddedDataset(X0, X1, y, 2)
+	print "Generated dataset of size {} x {}".format(len(X0),X0[0].shape)
+
+	#Shuffle dataset
+	data = zip(X0,X1,y)
+	random.shuffle(data)
+	X0, X1, y = map(list,zip(*data))
+
+	print "Saving dataset... - this may take a while"
+	print "Saving X0..."
+	pickle.dump(X0, open(datasetPath+"X0_hd_test.p", "wb" ))
+	print "Saving X1..."
+	pickle.dump(X1, open(datasetPath+"X1_hd_test.p", "wb" ))
+	print "Saving y..."
+	pickle.dump(y, open(datasetPath+"y_hd_test.p", "wb" ))
+
+if __name__ == "__main__":
+	motions = ["gamma","z","idle"]
+
+	arg = sys.argv[1] if len(sys.argv) == 2 else None 
+
+	if arg is None:
+		print "Need argument"
+	elif arg == "process":
+		generateProcessedImages()
+	elif arg == "dataset":
+		generateDataset(motions, randomPadding=True, cropLength=False, speedUp=False)
+	else:
+		print "Wrong argument"
 
 
 
