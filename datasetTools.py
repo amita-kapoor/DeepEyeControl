@@ -11,6 +11,7 @@ from config import rawPath, datasetPath, datasetImageSize, processedPath, datase
 import os.path
 import shutil
 import sys
+from videoTools import getBlankFrameDiff, getDifferenceFrame
 
 #Padding for LSTM
 def padLSTM(sequences, maxlen=None, dtype='int32', padding='post', truncating='post', value=0.):
@@ -46,10 +47,6 @@ def process(eye):
 	eye = cv2.resize(eye,(datasetImageSize, datasetImageSize), interpolation = cv2.INTER_CUBIC)
 	eye = cv2.equalizeHist(eye)
 	return eye
-
-def getDifferenceFrame(t1, t0):
-	diff = t1.astype(float) - t0.astype(float)
-	return diff
 
 #Writes image at desired path
 def save(eye,step,eyeNb,motion,destinationPath):
@@ -133,11 +130,39 @@ def getTimeWarpedDataset(X0,X1,y):
 
 	return newX0, newX1, newY
 
-def getPaddedDataset(X0,X1,y,paddedExamples=2):
-	#TODO add slight noise ?
-	blankFrame = np.zeros((datasetImageSize,datasetImageSize)).astype(float)
-	blankFrame = np.reshape(blankFrame,[datasetImageSize,datasetImageSize,1])
-	
+#Pad beginning/end/both to max length
+def getSlidingPaddedDataset(X0,X1,y, missingPaddings):
+	blankFrame = getBlankFrameDiff()
+	#We don't keep old samples
+	newX0, newX1, newY = [], [], []
+
+	#Foreach sample in the dataset
+	for i in range(len(y)):
+		label = y[i]
+
+		missingFrames = datasetMaxSerieLength - len(X0[i])
+		shiftSize = float(missingFrames)/missingPaddings
+
+		#Add N sliding padded examples
+		for shiftIndex in range(missingPaddings+1):
+			#Initialize blank full size series
+			X0serie = [getBlankFrameDiff() for _ in range(datasetMaxSerieLength)]
+			X1serie = [getBlankFrameDiff() for _ in range(datasetMaxSerieLength)]
+
+			#Change slice of serie
+			X0serie[int(shiftIndex*shiftSize):int(shiftIndex*shiftSize)+len(X0[i])] = X0[i]
+			X1serie[int(shiftIndex*shiftSize):int(shiftIndex*shiftSize)+len(X0[i])] = X1[i]
+
+			#Add to final dataset
+			newX0.append(np.array(X0serie))
+			newX1.append(np.array(X1serie))
+			newY.append(label)
+
+	return newX0, newX1, newY
+
+def getRandomPaddedDataset(X0,X1,y,paddedExamples=2):
+	blankFrame = getBlankFrameDiff()
+
 	#We don't keep old samples
 	newX0, newX1, newY = [], [], []
 
@@ -246,13 +271,17 @@ def generateDataset(motions, randomPadding=False, cropLength=False, speedUp=Fals
 	#Manual time warping
 	print len(X0), "examples of shape", X0[0].shape
 	print "Time warping dataset..."
-	#X0, X1, y = getTimeWarpedDataset(X0, X1, y)
+	X0, X1, y = getTimeWarpedDataset(X0, X1, y)
 	print "Generated dataset of size {} x {}".format(len(X0),X0[0].shape)
 
-	#Now we have loaded all images diffs into X0, X1
+	#print len(X0), "examples of shape", X0[0].shape
+	#print "Padding dataset (random)..."
+	#X0, X1, y = getRandomPaddedDataset(X0, X1, y, 2)
+	#print "Generated dataset of size {} x {}".format(len(X0),X0[0].shape)
+
 	print len(X0), "examples of shape", X0[0].shape
-	print "Padding dataset..."
-	#X0, X1, y = getPaddedDataset(X0, X1, y, 2)
+	print "Padding dataset (sliding)..."
+	X0, X1, y = getSlidingPaddedDataset(X0, X1, y, 8)
 	print "Generated dataset of size {} x {}".format(len(X0),X0[0].shape)
 
 	#Shuffle dataset
@@ -260,13 +289,22 @@ def generateDataset(motions, randomPadding=False, cropLength=False, speedUp=Fals
 	random.shuffle(data)
 	X0, X1, y = map(list,zip(*data))
 
-	print "Saving dataset... - this may take a while"
-	print "Saving X0..."
-	pickle.dump(X0, open(datasetPath+"X0_hd_test.p", "wb" ))
-	print "Saving X1..."
-	pickle.dump(X1, open(datasetPath+"X1_hd_test.p", "wb" ))
-	print "Saving y..."
-	pickle.dump(y, open(datasetPath+"y_hd_test.p", "wb" ))
+	# print "Saving dataset... - this may take a while"
+	# print "Saving X0..."
+	# pickle.dump(X0, open(datasetPath+"X0_hd_slide.p", "wb" ))
+	# print "Saving X1..."
+	# pickle.dump(X1, open(datasetPath+"X1_hd_slide.p", "wb" ))
+	# print "Saving y..."
+	# pickle.dump(y, open(datasetPath+"y_hd_slide.p", "wb" ))
+
+	#Save at hdf5 format
+	print "Saving dataset in hdf5 format... - this may take a while"
+	import h5py
+	h5f = h5py.File(datasetPath+"data.h5", 'w')
+	h5f.create_dataset('eye_X0', data=X0)
+	h5f.create_dataset('eye_X1', data=X1)
+	h5f.create_dataset('eye_Y', data=y)
+	h5f.close()
 
 if __name__ == "__main__":
 	motions = ["gamma","z","idle"]

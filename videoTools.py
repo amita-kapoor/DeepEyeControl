@@ -1,10 +1,39 @@
 import cv2
-from datasetTools import getDifferenceFrame
 import numpy as np
 from config import datasetImageSize
 
+# Show current eyes with diff
+def displayCurrentDiff(eye0, eye1, eye0previous, eye1previous, stopFrame=False):
+	current = np.hstack((eye0.astype(np.uint8),eye1.astype(np.uint8)))
+	last = np.hstack((eye0previous.astype(np.uint8),eye1previous.astype(np.uint8)))
+	showDifference(current,last)
+	
+	# Debug frame by frame
+	if stopFrame:
+		cv2.waitKey(0)
+		
+#Display whole history as seen by LSTM
+def displayHistoryDiffs(framesDiffHistory, fps):
+	framesDiffHistoryImages = []
+	for diff, _ in framesDiffHistory:
+		diff = (diff.astype(float)+255.)/2.
+		framesDiffHistoryImages.append(diff.astype(np.uint8))
+
+	img = None
+	for rowIndex in range(8):
+		#Debug history
+		rowImg = np.hstack(framesDiffHistoryImages[rowIndex*8:rowIndex*8+8])
+		img = img = np.vstack((img,rowImg)) if img is not None else rowImg
+	
+	cv2.putText(img,"FPS: {}".format(int(fps)),(3,9), cv2.FONT_HERSHEY_SIMPLEX, 0.3, 255)
+	cv2.imshow("Frame history",img)
+
 def getBlankFrameDiff():
 	return np.zeros((datasetImageSize,datasetImageSize)).reshape([datasetImageSize,datasetImageSize,1])
+
+def getDifferenceFrame(t1, t0):
+	diff = t1.astype(float) - t0.astype(float)
+	return diff
 
 def showDifference(t1,t0):
 	#Resize for consistency

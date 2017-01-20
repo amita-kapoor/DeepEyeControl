@@ -9,6 +9,8 @@ from datasetTools import padLSTM
 import numpy as np
 import tensorflow as tf
 import random
+import sys 
+import h5py
 
 def createModel(nbClasses,imageSize,maxlength):
 	print "------- Creating model... -------"
@@ -47,13 +49,19 @@ def createLSTM(cnn0, cnn1):
 
 #Trains the model
 def trainModel():
-	runId = "ZZV - HD" + str(datetime.datetime.now().time())
+	runId = "ZZU - Slide HDF5" + str(datetime.datetime.now().time())
 
 	#Load dataset
-	X0 = pickle.load(open(datasetPath+"X0_hd.p", "rb" ))
-	X1 = pickle.load(open(datasetPath+"X1_hd.p", "rb" ))
-	y = pickle.load(open(datasetPath+"y_hd.p", "rb" ))
-	print len(y), "series, first has shape", X0[0].shape
+	# X0 = pickle.load(open(datasetPath+"X0_hd.p", "rb" ))
+	# X1 = pickle.load(open(datasetPath+"X1_hd.p", "rb" ))
+	# y = pickle.load(open(datasetPath+"y_hd.p", "rb" ))
+	# print len(y), "series, first has shape", X0[0].shape
+
+	# Load hdf5 dataset
+	h5f = h5py.File(datasetPath+"data.h5", 'r')
+	X0 = h5f['eye_X0']
+	X1 = h5f['eye_X1']
+	y = h5f['eye_Y']
 
 	lengths = [serie.shape[0] for serie in X0]
 	minLength, maxlength = min(lengths), max(lengths)
@@ -65,8 +73,8 @@ def trainModel():
 
 	#Create, fit and save model
 	model = createModel(nbClasses=3, imageSize=datasetImageSize, maxlength=maxlength)
-	model.fit([X0, X1], y, n_epoch=40, batch_size=80, shuffle=True, validation_set=0.15, show_metric=True, run_id=runId)
-	model.save(modelsPath+"eyeDNN_HD.tflearn")
+	model.fit([X0, X1], y, n_epoch=13, batch_size=80, shuffle=True, validation_set=0.15, show_metric=True, run_id=runId)
+	model.save(modelsPath+"eyeDNN_HD_SLIDE.tflearn")
 
 #Tests the model on custom dataset
 def testModel():
