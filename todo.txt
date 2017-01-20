@@ -9,7 +9,7 @@
 
 
 PROBLEMS: 5FPS SPEED ?
-PROBLEMS: DO THE SLIDING PADDING ?
+PROBLEMS: DO THE SLIDING PADDING ?!
  
 - Add padding to beginning AND end 5 long by 5 long:
 [X____]
