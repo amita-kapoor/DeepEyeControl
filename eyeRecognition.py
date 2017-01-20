@@ -53,10 +53,7 @@ def detectPattern(predictionSoftmax):
 def displayHistoryDiffs(framesDiffHistory, fps):
 	framesDiffHistoryImages = []
 	for diff, _ in framesDiffHistory:
-		if diff is None:
-			diff = getBlankFrameDiff()
-		else:
-			diff = (diff.astype(float)+255.)/2.
+		diff = (diff.astype(float)+255.)/2.
 		framesDiffHistoryImages.append(diff.astype(np.uint8))
 
 	img = None
@@ -83,7 +80,7 @@ def displayCurrentDiff(eye0, eye1, eye0previous, eye1previous, stopFrame=False):
 def main(displayHistory=True):
 	#History of size 30
 	predictionsHistory = [-1 for i in range(15)]
-	framesDiffHistory = [[None,None] for i in range(64)]
+	framesDiffHistory = [(getBlankFrameDiff(),getBlankFrameDiff()) for i in range(64)]
 	lastEyes = None
 
 	#Initializa webcam
@@ -175,42 +172,39 @@ def main(displayHistory=True):
 		if displayHistory:
 			displayHistoryDiffs(framesDiffHistory, fps)
 
-		if [None,None] in framesDiffHistory:
-			print "History filling..."
-		else:
-			#Extract each eyes
-			X0, X1 = zip(*framesDiffHistory)
+		#Extract each eyes
+		X0, X1 = zip(*framesDiffHistory)
 
-			#Reshape as a tensor (NbExamples,SerieLength,Width,Height,Channels)
-			X0 = np.reshape(X0,[-1,len(framesDiffHistory),datasetImageSize,datasetImageSize,1])
-			X1 = np.reshape(X1,[-1,len(framesDiffHistory),datasetImageSize,datasetImageSize,1])
+		#Reshape as a tensor (NbExamples,SerieLength,Width,Height,Channels)
+		X0 = np.reshape(X0,[-1,len(framesDiffHistory),datasetImageSize,datasetImageSize,1])
+		X1 = np.reshape(X1,[-1,len(framesDiffHistory),datasetImageSize,datasetImageSize,1])
 
-			#Make shape (NbExamples,MaxLength,Width,Height,Channels)
-			X0_post = padLSTM(X0, maxlen=100, padding='post', value=0.)
-			X1_post = padLSTM(X1, maxlen=100, padding='post', value=0.)
+		#Make shape (NbExamples,MaxLength,Width,Height,Channels)
+		X0_post = padLSTM(X0, maxlen=100, padding='post', value=0.)
+		X1_post = padLSTM(X1, maxlen=100, padding='post', value=0.)
 
-			#X0_pre = padLSTM(X0, maxlen=100, padding='pre', value=0.)
-			#X1_pre = padLSTM(X1, maxlen=100, padding='pre', value=0.)
+		#X0_pre = padLSTM(X0, maxlen=100, padding='pre', value=0.)
+		#X1_pre = padLSTM(X1, maxlen=100, padding='pre', value=0.)
 
-			#print "------------------------------------"
+		#print "------------------------------------"
 
-			#Get predictions from the model with pre/post padding
-			#predictionSoftmax_pre = model.predict([X0_pre,X1_pre])[0]
-			#predictedIndex_pre = max(enumerate(predictionSoftmax_pre), key=lambda x:x[1])[0]
-			
-			#predictionSoftmax_post = model.predict([X0_post,X1_post])[0]
-			#predictedIndex_post = max(enumerate(predictionSoftmax_post), key=lambda x:x[1])[0]
-			
-			#print "Pre: ", ["{0:.2f}".format(x) for x in predictionSoftmax_pre], "->", predictedIndex_pre
-			#print "Post:", ["{0:.2f}".format(x) for x in predictionSoftmax_post], "->", predictedIndex_post
-			
-			##Average predictions
-			#predictionSoftmax_avg = [predictionSoftmax_pre[i]*0.5 + predictionSoftmax_post[i]*0.5 for i in range(len(predictionSoftmax_pre))]
-			#predictedIndex_avg = max(enumerate(predictionSoftmax_avg), key=lambda x:x[1])[0]
-			#print "Avg: ", ["{0:.2f}".format(x) for x in predictionSoftmax_avg], "->", predictedIndex_avg
+		#Get predictions from the model with pre/post padding
+		#predictionSoftmax_pre = model.predict([X0_pre,X1_pre])[0]
+		#predictedIndex_pre = max(enumerate(predictionSoftmax_pre), key=lambda x:x[1])[0]
+		
+		#predictionSoftmax_post = model.predict([X0_post,X1_post])[0]
+		#predictedIndex_post = max(enumerate(predictionSoftmax_post), key=lambda x:x[1])[0]
+		
+		#print "Pre: ", ["{0:.2f}".format(x) for x in predictionSoftmax_pre], "->", predictedIndex_pre
+		#print "Post:", ["{0:.2f}".format(x) for x in predictionSoftmax_post], "->", predictedIndex_post
+		
+		##Average predictions
+		#predictionSoftmax_avg = [predictionSoftmax_pre[i]*0.5 + predictionSoftmax_post[i]*0.5 for i in range(len(predictionSoftmax_pre))]
+		#predictedIndex_avg = max(enumerate(predictionSoftmax_avg), key=lambda x:x[1])[0]
+		#print "Avg: ", ["{0:.2f}".format(x) for x in predictionSoftmax_avg], "->", predictedIndex_avg
 
-			#Handle verified patterns from history
-			#detectPattern(predictionSoftmax)	
+		#Handle verified patterns from history
+		#detectPattern(predictionSoftmax)	
 
 
 
