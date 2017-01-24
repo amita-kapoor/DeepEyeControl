@@ -1,6 +1,6 @@
 import threading
 import time
-from config import datasetImageSize, datasetMaxSerieLength, modelsPath
+from config import datasetImageSize, datasetMaxSerieLength, modelsPath, framesInHistory
 from model import createModel
 from datasetTools import padLSTM
 
@@ -13,8 +13,16 @@ def threaded(fn):
 
 class Classifier:
 
-	#framesInHistory = 
-	predictionsPerSecond = 5
+	#What we want to reach
+	predictionsPerSecond = 3
+
+	#/!\ HARD-CODED
+	recordingFPS = 25.
+
+	#How many predictions to have average on motion
+	averageWindowSize = int(predictionsPerSecond*framesInHistory/recordingFPS+1)
+
+	print "Window size: at {} predicitions per seconds".format(predictionsPerSecond), averageWindowSize
 
 	def __init__(self):
 		self.X0 = None
@@ -24,14 +32,17 @@ class Classifier:
 		print "Loading model parameters..."
 		self.model.load(modelsPath+'eyeDNN_HD_SLIDE.tflearn')
 		
-
 		#History of last 3 predictions
-		self.history = [None, None, None]
+		self.history = [None for i in range(averageWindowSize)]
 
 	@threaded
 	def startPredictions(self):
 		while True:
 			if self.X0 is not None:
+
+				#Record start time
+				t0 = time.time()
+
 				#Read history
 				X0 = list(self.X0)
 				X1 = list(self.X1)
@@ -53,13 +64,15 @@ class Classifier:
 				self.history.append(predictionSoftmax)
 
 				if None not in self.history:
-					averageSoftmax = [(self.history[0][i] + self.history[1][i] + self.history[2][i])/3. for i in range(3)]
+					averageSoftmax = [sum(_)/float(len(self.history)) for _ in zip(*self.history)]
 					averageIndex = max(enumerate(averageSoftmax), key=lambda x:x[1])[0]
 					print "AVERAGE -------------------------:", ["{0:.2f}".format(x) for x in averageSoftmax], "->", averageIndex
 
 				#FPS ?
 				#Tiny sleep ?
-				time.sleep(1./predictionsPerSecond)
+				timeElapsed = time.time() - t0
+				#Try to maintain 1./predictionsPerSecond s between each prediction
+				time.sleep(max(0, 1./predictionsPerSecond - timeElapsed))
 
 
 
