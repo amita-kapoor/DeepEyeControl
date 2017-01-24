@@ -13,7 +13,7 @@ import sys
 import h5py
 
 def createModel(nbClasses,imageSize,maxlength):
-	print "------- Creating model... -------"
+	print "======== Creating model... ========"
 	print "Creating left and right CNNs..."
 	net0 = createCNN(imageSize,maxlength)
 	net1 = createCNN(imageSize,maxlength)
@@ -27,6 +27,7 @@ def createModel(nbClasses,imageSize,maxlength):
 
 	print "Putting the model together..."
 	model = tflearn.DNN(net, tensorboard_verbose=0)
+	print "======== Model created ============"
 
 	return model
 

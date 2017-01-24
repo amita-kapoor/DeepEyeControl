@@ -4,6 +4,42 @@ from config import datasetImageSize, datasetMaxSerieLength, modelsPath, framesIn
 from model import createModel
 from datasetTools import padLSTM
 
+#What we want to reach
+predictionsPerSecond = 2
+
+#Approximate duration of a motion (s)
+motionDuration = 1.
+
+#/!\ HARD-CODED estimation
+recordingFPS = 25.
+
+#Time to replace all history (s)  84/25 = 2.56s
+historyDuration = framesInHistory/recordingFPS
+
+#How many predictions to have average on motion
+averageWindowSize = int((historyDuration-motionDuration)*predictionsPerSecond+1)
+
+try:
+	from terminaltables import AsciiTable
+	table_data = [
+		['Parameter', 'Value'],
+		['Predictions/s (target)', predictionsPerSecond],
+		['Frames recorded/s (estimate)', recordingFPS],
+		['Time to teplace all history (s)', historyDuration],
+		['Motion lifespan in history (s)', (historyDuration-motionDuration)],
+		['Prediction needed for average', averageWindowSize]
+	]
+	print AsciiTable(table_data).table
+except ImportError:
+	print "======== Classification parameters ========"
+	print predictionsPerSecond, "predictions/s (classifier target)"
+	print recordingFPS, "frames/s (recording target)"
+	print historyDuration, "s to replace all history"
+	print (historyDuration-motionDuration), "s (motion lifespan in history)" 
+	print averageWindowSize, "predictions needed to average"
+	print "===========================================\n"
+	
+
 def threaded(fn):
 	def wrapper(*args, **kwargs):
 		thread = threading.Thread(target=fn, args=args, kwargs=kwargs)
@@ -11,19 +47,7 @@ def threaded(fn):
 		return thread
 	return wrapper
 
-class Classifier:
-
-	#What we want to reach
-	predictionsPerSecond = 3
-
-	#/!\ HARD-CODED
-	recordingFPS = 25.
-
-	#How many predictions to have average on motion
-	averageWindowSize = int(predictionsPerSecond*framesInHistory/recordingFPS+1)
-
-	print "Window size: at {} predicitions per seconds".format(predictionsPerSecond), averageWindowSize
-
+class Classifier:	
 	def __init__(self):
 		self.X0 = None
 		self.predictions = []
@@ -66,7 +90,7 @@ class Classifier:
 				if None not in self.history:
 					averageSoftmax = [sum(_)/float(len(self.history)) for _ in zip(*self.history)]
 					averageIndex = max(enumerate(averageSoftmax), key=lambda x:x[1])[0]
-					print "AVERAGE -------------------------:", ["{0:.2f}".format(x) for x in averageSoftmax], "->", averageIndex
+					print "AVERAGE ========================-:", ["{0:.2f}".format(x) for x in averageSoftmax], "->", averageIndex
 
 				#FPS ?
 				#Tiny sleep ?
