@@ -1,22 +1,21 @@
-import os
 import cv2
-import random
-import string
-import math
-from random import shuffle
 import numpy as np
-import pickle
 import tflearn
-from subprocess import PIPE, Popen
 from model import createModel
-from config import datasetImageSize, cascadePath, modelsPath, framesInHistory
-from datasetTools import process, padLSTM
+from config import datasetImageSize
+from config import framesInHistory
+from datasetTools import padLSTM
+from datasetTools import process
 from imutils.video import WebcamVideoStream
 import cv2
 import imutils
 import time
 from detector import Detector
-from videoTools import showDifference, getBlankFrameDiff, getDifferenceFrame, displayHistoryDiffs, displayCurrentDiff
+from videoTools import displayCurrentDiff
+from videoTools import displayHistoryDiffs
+from videoTools import getBlankFrameDiff
+from videoTools import getDifferenceFrame
+from videoTools import showDifference
 from classifier import Classifier
 
 def main(displayHistory=True):

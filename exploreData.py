@@ -1,8 +1,7 @@
 import pickle
-from config import modelsPath, datasetPath, datasetImageSize
+from config import datasetPath
 from datasetTools import padLSTM
 import numpy as np
-import random
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 

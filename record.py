@@ -1,9 +1,4 @@
 import os
-import string
-import math
-import datetime
-import random
-from random import shuffle
 import time
 
 import cv2
@@ -12,9 +7,11 @@ import numpy as np
 import imutils
 from imutils.video import WebcamVideoStream
 
-from config import datasetImageSize, cascadePath, rawPath
+from config import rawPath
 from datasetTools import save, process
-from videoTools import getFace, getEyes, showDifference
+from videoTools import getEyes
+from videoTools import getFace
+from videoTools import showDifference
 
 from detector import Detector
 
