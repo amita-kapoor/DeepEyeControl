@@ -13,14 +13,11 @@ def explore():
 	y = pickle.load(open(datasetPath+"y_hd.p", "rb" ))
 
 	lengths = [serie.shape[0] for serie in X0]
-	maxlength = max(lengths)
-	minLength = min(lengths)
+	minLength, maxlength = min(lengths), max(lengths)
 
 	#print lengths
 	print len([_ for _ in lengths if _ > 100]), "over 100"
-
 	print "Lengths range: {} to {}".format(minLength,maxlength)
-
 	print len(X0), "series of shape", X0[0].shape
 
 	X0 = padLSTM(X0, maxlen=maxlength, value=0.)

@@ -69,7 +69,7 @@ def stream(record, showFrame, showFace, showEyes, showDiff):
 			if faceBB is None:
 				#Avoid flash in difference
 				lastFace = None
-				#Invalidate eyes bounding box as all will change (TODO REMOVE??)
+				#Invalidate eyes bounding box as all will change
 				detector.resetEyesBB();
 				#Write skips for difference frames
 				f.write("face_{}\n".format(step))

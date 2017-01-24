@@ -9,7 +9,8 @@ import shutil
 import sys
 from videoTools import getBlankFrameDiff, getDifferenceFrame
 
-#Padding for LSTM
+#Padding for LSTM as it appears that padding images is not working in TFLearn
+#Not useful if sequences are manually padded (sliding window etc.)
 def padLSTM(sequences, maxlen=None, dtype='int32', padding='post', truncating='post', value=0.):
 	lengths = [len(s) for s in sequences]
 
@@ -185,7 +186,7 @@ def getRandomPaddedDataset(X0,X1,y,paddedExamples=2):
 
 	return newX0, newX1, newY
 
-#Creates pickle dataset (X,y)
+#Creates pickle/HDF5 dataset (X,y)
 def generateDataset(motions, randomPadding=False, cropLength=False, speedUp=False): 
 	print "Generating dataset..."
 
@@ -285,7 +286,7 @@ def generateDataset(motions, randomPadding=False, cropLength=False, speedUp=Fals
 	random.shuffle(data)
 	X0, X1, y = map(list,zip(*data))
 
-	# print "Saving dataset... - this may take a while"
+	# print "Saving dataset with pickle... - this may take a while"
 	# print "Saving X0..."
 	# pickle.dump(X0, open(datasetPath+"X0_hd_slide.p", "wb" ))
 	# print "Saving X1..."

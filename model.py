@@ -5,14 +5,14 @@ from tflearn.layers.conv import max_pool_2d
 from tflearn.layers.core import input_data, dropout, fully_connected
 from tflearn.layers.estimator import regression
 import datetime
-from config import modelsPath, datasetPath, datasetImageSize
+from config import modelsPath, datasetPath, datasetImageSize, datasetMaxSerieLength
 from datasetTools import padLSTM
 import numpy as np
 import tensorflow as tf
 import sys 
 import h5py
 
-def createModel(nbClasses,imageSize,maxlength):
+def createModel(nbClasses, imageSize, maxlength):
 	print "======== Creating model... ========"
 	print "Creating left and right CNNs..."
 	net0 = createCNN(imageSize,maxlength)
@@ -52,7 +52,7 @@ def createLSTM(cnn0, cnn1):
 def trainModel():
 	runId = "ZZU - Slide HDF5" + str(datetime.datetime.now().time())
 
-	#Load dataset
+	#Load pickle dataset
 	# X0 = pickle.load(open(datasetPath+"X0_hd.p", "rb" ))
 	# X1 = pickle.load(open(datasetPath+"X1_hd.p", "rb" ))
 	# y = pickle.load(open(datasetPath+"y_hd.p", "rb" ))
@@ -79,6 +79,7 @@ def trainModel():
 
 #Tests the model on custom dataset
 def testModel():
+	#TODO do same with h5f
 	#Load test dataset
 	print "Loading test dataset..."
 	X0_test = pickle.load(open(datasetPath+"X0_hd_test.p", "rb" ))
@@ -86,12 +87,9 @@ def testModel():
 	y_test = pickle.load(open(datasetPath+"y_hd_test.p", "rb" ))
 
 	print len(X0_test), "series of shape", X0_test[0].shape
-	
-	#TODO Remove hack
-	maxlength = 100
 
-	X0_test = padLSTM(X0_test, maxlen=maxlength, value=0.)
-	X1_test = padLSTM(X1_test, maxlen=maxlength, value=0.)
+	X0_test = padLSTM(X0_test, maxlen=datasetMaxSerieLength, value=0.)
+	X1_test = padLSTM(X1_test, maxlen=datasetMaxSerieLength, value=0.)
 
 	# Load model
 	model = createModel(nbClasses=3, imageSize=datasetImageSize, maxlength=maxlength)
