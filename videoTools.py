@@ -20,13 +20,14 @@ def displayHistoryDiffs(framesDiffHistory, fps):
 		framesDiffHistoryImages.append(getShowable(diff))
 
 	img = None
-	#64 -> 8
+	#Size of display square. Ex. 64 -> 8
 	squareSize = int(math.sqrt(len(framesDiffHistory)))
 	for rowIndex in range(squareSize):
 		#Debug history
 		rowImg = np.hstack(framesDiffHistoryImages[rowIndex*squareSize:rowIndex*squareSize+squareSize])
-		img = img = np.vstack((img,rowImg)) if img is not None else rowImg
+		img = np.vstack((img,rowImg)) if img is not None else rowImg
 	
+	#Write FPS on image
 	cv2.putText(img,"FPS: {}".format(int(fps)),(3,9), cv2.FONT_HERSHEY_SIMPLEX, 0.3, 255)
 	cv2.imshow("Frame history",img)
 
@@ -50,6 +51,7 @@ def getShowable(diff):
 	diff = (diff+255.)/2.
 	return diff.astype(np.uint8)
 
+# Displays difference between frames
 def showDifference(t1,t0):
 	#Resize for consistency
 	t0 = cv2.resize(t0,(400,400))
@@ -65,7 +67,6 @@ def showDifference(t1,t0):
 
 	#Display
 	img = np.hstack((t0,t1,diff))
-
 	t0 = cv2.equalizeHist(t0)
 	t1 = cv2.equalizeHist(t1)
 

@@ -2,11 +2,7 @@ import os
 import cv2
 import random
 from random import randrange
-import string
-import math
-from random import shuffle
 import numpy as np
-import pickle
 from config import rawPath, datasetPath, datasetImageSize, processedPath, datasetMaxSerieLength
 import os.path
 import shutil

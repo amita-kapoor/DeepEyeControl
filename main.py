@@ -102,7 +102,7 @@ def main(displayHistory=True):
 			#Display/debug
 			displayDiff = False
 			if displayDiff:
-				displayCurrentDiff(eye0,eye1,eye0previous,eye1previous,stopFrame=False)
+				displayCurrentDiff(eye0,eye1,eye0previous,eye1previous, stopFrame=False)
 
 			#Crop beginning then add new to end
 			framesDiffHistory = framesDiffHistory[1:]

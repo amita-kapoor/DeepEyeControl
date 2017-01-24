@@ -6,6 +6,7 @@ import random
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 
+#Useless if done on padded dataset
 def explore():
 	#Load dataset
 	X0 = pickle.load(open(datasetPath+"X0_hd.p", "rb" ))
