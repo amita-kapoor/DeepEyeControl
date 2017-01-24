@@ -9,7 +9,7 @@ import pickle
 import tflearn
 from subprocess import PIPE, Popen
 from model import createModel
-from config import datasetImageSize, cascadePath, modelsPath
+from config import datasetImageSize, cascadePath, modelsPath, framesInHistory
 from datasetTools import process, padLSTM
 from imutils.video import WebcamVideoStream
 import cv2
@@ -20,9 +20,8 @@ from videoTools import showDifference, getBlankFrameDiff, getDifferenceFrame, di
 from classifier import Classifier
 
 def main(displayHistory=True):
-	#History of size 30
-	predictionsHistory = [-1 for i in range(15)]
-	framesDiffHistory = [(getBlankFrameDiff(),getBlankFrameDiff()) for i in range(64)]
+	#Window for past frames
+	framesDiffHistory = [(getBlankFrameDiff(),getBlankFrameDiff()) for i in range(framesInHistory)]
 	lastEyes = None
 
 	#Load model classifier
@@ -33,19 +32,21 @@ def main(displayHistory=True):
 	#Initialize webcam
 	vs = WebcamVideoStream(src=0).start()
 	
+	#For FPS computation
 	t0 = -1
-	frameID = 0
 
+	#Face/eyes detector
 	detector = Detector()
 
 	print "Starting eye recognition..."
 	while True:
 
+		#Compute FPS
 		dt =  time.time() - t0
 		fps = 1/dt
 		t0 = time.time()
 
-		#Limit framerate
+		#Limit FPS with wait
 		waitMs = 5
 		key = cv2.waitKey(waitMs) & 0xFF
 
@@ -54,28 +55,26 @@ def main(displayHistory=True):
 		fullFrame = cv2.cvtColor(fullFrame, cv2.COLOR_BGR2GRAY)
 		frame = imutils.resize(fullFrame, width=300)
 
+		#Find face
 		faceBB = detector.getFace(frame)
-
-		#If there is no face
 		if faceBB is None:
 			#Invalidate eyes bounding box as all will change
 			lastEyes = None
 			detector.resetEyesBB()
 			continue
 
-		#Get small face coordinates
+		#Get low resolution face coordinates
 		x,y,w,h = faceBB
 		face = frame[y:y+h, x:x+w]
 
-		#Apply to fullscale
+		#Apply to high resolution frame
 		xScale = fullFrame.shape[1]/frame.shape[1]
 		yScale = fullFrame.shape[0]/frame.shape[0]
 		x,y,w,h = x*xScale,y*yScale,w*xScale,h*yScale
 		fullFace = fullFrame[y:y+h, x:x+w]
 
-		#Find eyes
+		#Find eyes on high resolution face
 		eyes = detector.getEyes(fullFace)
-
 		if eyes is None:
 			#Reset last eyes
 			lastEyes = None
@@ -83,11 +82,11 @@ def main(displayHistory=True):
 
 		eye0, eye1 = eyes
 
-		#Process (histograms, size)			
+		#Process (normalize, resize)			
 		eye0 = process(eye0)
 		eye1 = process(eye1)
 		
-		#Reshape
+		#Reshape for dataset
 		eye0 = np.reshape(eye0,[datasetImageSize,datasetImageSize,1])
 		eye1 = np.reshape(eye1,[datasetImageSize,datasetImageSize,1])
 
@@ -100,18 +99,19 @@ def main(displayHistory=True):
 			diff0 = getDifferenceFrame(eye0, eye0previous)
 			diff1 = getDifferenceFrame(eye1, eye1previous)
 
+			#Display/debug
 			displayDiff = False
 			if displayDiff:
 				displayCurrentDiff(eye0,eye1,eye0previous,eye1previous,stopFrame=False)
 
-			#Crop beginning then add new
+			#Crop beginning then add new to end
 			framesDiffHistory = framesDiffHistory[1:]
 			framesDiffHistory.append([diff0,diff1])
 
 		#Keep current as last frame
 		lastEyes = [eye0, eye1]
 
-		#Not time consuming
+		#Note: this is not time consuming
 		if displayHistory:
 			displayHistoryDiffs(framesDiffHistory, fps)
 
@@ -122,15 +122,13 @@ def main(displayHistory=True):
 		X0 = np.reshape(X0,[-1,len(framesDiffHistory),datasetImageSize,datasetImageSize,1])
 		X1 = np.reshape(X1,[-1,len(framesDiffHistory),datasetImageSize,datasetImageSize,1])
 
-
-		#Save history for Classifier
+		#Save history to Classifier
 		classifier.X0 = X0
 		classifier.X1 = X1
 
+		#TODO custom actions (change volume, send notification, close app etc.)
 		#Handle verified patterns from history
 		#detectPattern(classifier)	
-
-
 
 
 if __name__ == "__main__":

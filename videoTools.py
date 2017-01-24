@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from config import datasetImageSize
+import math
 
 # Show current eyes with diff
 def displayCurrentDiff(eye0, eye1, eye0previous, eye1previous, stopFrame=False):
@@ -20,9 +21,11 @@ def displayHistoryDiffs(framesDiffHistory, fps):
 		framesDiffHistoryImages.append(diff.astype(np.uint8))
 
 	img = None
-	for rowIndex in range(8):
+	#64 -> 8
+	squareSize = int(math.sqrt(len(framesDiffHistory)))
+	for rowIndex in range(squareSize):
 		#Debug history
-		rowImg = np.hstack(framesDiffHistoryImages[rowIndex*8:rowIndex*8+8])
+		rowImg = np.hstack(framesDiffHistoryImages[rowIndex*squareSize:rowIndex*squareSize+squareSize])
 		img = img = np.vstack((img,rowImg)) if img is not None else rowImg
 	
 	cv2.putText(img,"FPS: {}".format(int(fps)),(3,9), cv2.FONT_HERSHEY_SIMPLEX, 0.3, 255)

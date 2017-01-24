@@ -7,3 +7,4 @@ Analysis of FPS for classification and then average for duration of motion etc.
 ### -> Average on 2.56s
 
 ### Classifier at 5FPS
+### 2.56s ~ 10-12 predictions

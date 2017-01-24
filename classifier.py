@@ -13,6 +13,9 @@ def threaded(fn):
 
 class Classifier:
 
+	#framesInHistory = 
+	predictionsPerSecond = 5
+
 	def __init__(self):
 		self.X0 = None
 		self.predictions = []
@@ -20,6 +23,8 @@ class Classifier:
 		self.model = createModel(nbClasses=3, imageSize=datasetImageSize, maxlength=datasetMaxSerieLength)
 		print "Loading model parameters..."
 		self.model.load(modelsPath+'eyeDNN_HD_SLIDE.tflearn')
+		
+
 		#History of last 3 predictions
 		self.history = [None, None, None]
 
@@ -54,7 +59,7 @@ class Classifier:
 
 				#FPS ?
 				#Tiny sleep ?
-				time.sleep(0.2)
+				time.sleep(1./predictionsPerSecond)
 
 
 
